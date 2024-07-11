@@ -30,8 +30,8 @@ class MyMovingRobotServer(Node):
         self.get_logger().info("Received a goal")
 
         #Validation of goal request
-        if (goal_request.position < 0):
-            self.get_logger().info("Rejecting the goal")
+        if goal_request.position not in range (0, 100) or goal_request.velocity <= 0:
+            self.get_logger().info("Rejecting the goal invalid position and/or velocity")
             return GoalResponse.REJECT
         
         #Policy: preempt existing goal when receiving new goal
@@ -49,6 +49,10 @@ class MyMovingRobotServer(Node):
         return CancelResponse.ACCEPT # or REJECT
 
     def execute_callback(self,goal_handle:ServerGoalHandle):
+        with self.goal_lock_:
+            self.goal_handle_=goal_handle
+
+
         goal_position =goal_handle.request.position
         velocity =goal_handle.request.velocity
 
@@ -58,6 +62,21 @@ class MyMovingRobotServer(Node):
         result=LocationSpeed.Result()
 
         while rclpy.ok():
+            if not goal_handle.is_active:
+                result.position=self.robot_position_
+                result.message= "Preempted by new goal"
+                return result
+            
+            if goal_handle.is_cancel_requested:
+                result.position =self.robot_position_
+                if goal_position== self.robot_position_:
+                    result.message="Success"
+                    goal_handle.succeed()
+                else:
+                    result.message="Canceled"
+                    goal_handle.canceled()
+                return result
+
             diff =goal_position - self.robot_position_
 
             if diff == 0:

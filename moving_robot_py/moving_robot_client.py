@@ -4,14 +4,18 @@ from rclpy.node import Node
 from rclpy.action.client import ClientGoalHandle,GoalStatus
 from rclpy.action import ActionClient
 from my_moving_robot_interfaces.action import LocationSpeed
+from example_interfaces.msg import Empty
 
 class MyMovingRobotClient(Node): 
     def __init__(self):
         super().__init__("moving_robot_client")
+        self.goal_handle_ = None
         self.moving_robot_client_=ActionClient(
             self,
             LocationSpeed,
             "moving_robot")
+        self.cancel_subscriber=self.create_subscription(
+            Empty,"cancel_move",self.callback_cancel_move,10)
         
     def send_goal(self,position,velocity):
         #wait for the server
@@ -31,9 +35,15 @@ class MyMovingRobotClient(Node):
 
         # Send the cancel request 2 seconds later
         # self.timer_ = self.create_timer(2.0,self.cancel_goal)
-
+ 
+    def callback_cancel_move(self,msg):
+        self.cancel_goal()
+    
     def cancel_goal(self):
-        pass
+        if self.goal_handle_ is not None:
+            self.get_logger().info("Send a cancel goal request")
+            self.goal_handle_.cancel_goal_async()
+
 
     def goal_response_callback(self,future):
         self.goal_handle_:ClientGoalHandle=future.result()
@@ -64,7 +74,7 @@ class MyMovingRobotClient(Node):
 def main(args=None):
     rclpy.init(args=args)
     node =MyMovingRobotClient()
-    node.send_goal(76,7) 
+    node.send_goal(76,1) 
     rclpy.spin(node)
     rclpy.shutdown()
 
